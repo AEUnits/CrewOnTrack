@@ -197,6 +197,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 #mapCanvas{flex:1;min-height:0;}
 .wo-pin{width:20px;height:20px;background:#e53935;border:2px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.45);}
 .wo-pin::after{content:"";position:absolute;width:6px;height:6px;border-radius:50%;background:#fff;top:5px;left:5px;}
+.wo-lbl{background:#fff;border:1px solid #94a3b8;border-radius:4px;padding:1px 5px;font-size:11px;font-weight:700;color:#1e293b;box-shadow:none;}
+.wo-lbl::before{display:none;}
+#mapHover{position:fixed;z-index:3500;display:none;pointer-events:none;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:12px 14px;width:300px;font-size:12px;color:#1e293b;}
+#mapHover .mh-t{font-weight:800;font-size:14px;margin-bottom:2px;}
+#mapHover .mh-a{color:#64748b;margin-bottom:8px;}
+#mapHover .mh-r{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-top:1px solid #f1f5f9;}
+#mapHover .mh-r span:first-child{color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;}
+#mapHover .mh-r span:last-child{text-align:right;font-weight:600;}
 .map-go{margin-top:6px;border:none;background:#6366f1;color:#fff;border-radius:5px;padding:4px 10px;font-size:12px;cursor:pointer;font-weight:600;}
 </style>
 </head>
@@ -204,7 +212,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div class="topbar">
   <div>
-    <div class="topbar-title">⚡ CrewOnTrack <span class="topbar-version" id="appVersionTag">v1.74</span></div>
+    <div class="topbar-title">⚡ CrewOnTrack <span class="topbar-version" id="appVersionTag">v1.77</span></div>
     <div class="topbar-sub">May – December · Haines City</div>
   </div>
 </div>
@@ -253,6 +261,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div id="mapCanvas"></div>
   </div>
 </div>
+<div id="mapHover"></div>
 <div class="modal-overlay" id="woModal" style="display:none;" onclick="if(event.target===this)closeWOModal()">
   <div class="modal">
     <div class="modal-title" id="woModalTitle">Add Work Order</div>
@@ -400,7 +409,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ── CONSTANTS ────────────────────────────────────────────────────────────
-const APP_VERSION = 'v1.74'; // bump by 0.01 every time a new download is produced (v1.00 -> v1.01 -> ... -> v1.99 -> v1.100 -> v1.999)
+const APP_VERSION = 'v1.77'; // bump by 0.01 every time a new download is produced (v1.00 -> v1.01 -> ... -> v1.99 -> v1.100 -> v1.999)
 const NUM_CREWS   = 22;
 const HRS_DAY     = 40;
 const WORK_DAYS   = 4;
@@ -518,7 +527,8 @@ let editingEvent = null;
 let tipSettings = {
   sched: {on:true, delay:'instant'},
   wo:    {on:true, delay:'instant'},
-  comp:  {on:true, delay:'instant'}
+  comp:  {on:true, delay:'instant'},
+  map:   {on:true, delay:'instant'}
 };
 let tipTimer = null;
 let lastMouseEvent = null;
@@ -565,7 +575,7 @@ function loadState() {
     if (s) {
       const parsed = JSON.parse(s);
       if (parsed.tipSettings) {
-        ['sched','wo','comp'].forEach(k=>{
+        ['sched','wo','comp','map'].forEach(k=>{
           if(parsed.tipSettings[k]) {
             if(typeof parsed.tipSettings[k].on === 'boolean') tipSettings[k].on = parsed.tipSettings[k].on;
             if(parsed.tipSettings[k].delay==='instant'||parsed.tipSettings[k].delay==='1s') tipSettings[k].delay = parsed.tipSettings[k].delay;
@@ -747,7 +757,32 @@ async function geocodeWO(w){
   }
   return null;
 }
-function closeMapView(){ _mapRun++; document.getElementById('mapModal').style.display='none'; }
+function showMapHover(w,ev){
+  const d=v=>fmtMDY(v);
+  const row=(k,v)=>'<div class="mh-r"><span>'+k+'</span><span>'+(v===''||v==null?'—':v)+'</span></div>';
+  const yn=v=>v?'✔ Yes':'No';
+  const esc=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const crewName=(w.crew!==''&&w.crew!=null&&crews[parseInt(w.crew)])?crews[parseInt(w.crew)]:'Unassigned';
+  const h=document.getElementById('mapHover');
+  h.innerHTML='<div class="mh-t">WO '+esc(w.id)+'</div><div class="mh-a">'+esc([w.addr,w.city,w.state].filter(Boolean).join(', '))+'</div>'
+    +row('Status',esc(w.st))+row('Hours',w.hrs?esc(w.hrs):'')+row('SSD',d(w.ssd))+row('SD',d(w.sd))+row('SFD',d(w.sfd))
+    +row('Foreman',esc(w.fm))+row('% Complete',esc(w.pct)+'%')+row('Con Comp',d(w.cc))+row('Assigned',esc(crewName))
+    +row('Designer',esc(w.pike))+row('Permits',esc(w.permit))
+    +row('Staked?',yn(w.staked))+row('Located?',yn(w.located))+row('Tree Trimming?',yn(w.tree))+row('Shoulder Space?',yn(w.shoulder))
+    +row('Lane Closure?',yn(w.lane))+row('MOT?',yn(w.mot))+row('Back Lot Machine?',yn(w.backlot))
+    +(w.notes?'<div class="mh-r" style="display:block"><span>Notes</span><div style="font-weight:600;margin-top:2px;">'+esc(w.notes)+'</div></div>':'');
+  h.style.display='block'; moveMapHover(ev);
+}
+function moveMapHover(ev){
+  const h=document.getElementById('mapHover'); if(!h||h.style.display==='none') return;
+  const r=h.getBoundingClientRect(); let x=ev.clientX+16, y=ev.clientY+12;
+  if(x+r.width>window.innerWidth-8) x=ev.clientX-r.width-16;
+  if(y+r.height>window.innerHeight-8) y=window.innerHeight-r.height-8;
+  h.style.left=Math.max(8,x)+'px'; h.style.top=Math.max(8,y)+'px';
+}
+let _mapHoverTimer=null, _mapLastEv=null;
+function hideMapHover(){ clearTimeout(_mapHoverTimer); const h=document.getElementById('mapHover'); if(h) h.style.display='none'; }
+function closeMapView(){ hideMapHover(); _mapRun++; document.getElementById('mapModal').style.display='none'; }
 async function openMapView(projId){
   const modal=document.getElementById('mapModal'), st=document.getElementById('mapStatus'), fail=document.getElementById('mapFail');
   modal.style.display='flex'; fail.style.display='none'; fail.innerHTML='';
@@ -766,7 +801,15 @@ async function openMapView(projId){
   const failed=[]; let placed=0;
   const addPin=w=>{
     const m=L.marker([w.lat,w.lng],{icon,draggable:true,title:w.id}).addTo(_mapLayer);
-    m.bindTooltip('<b>'+w.id+'</b><br>'+w.addr,{direction:'top',offset:[0,-24]});
+    m.bindTooltip(w.id,{permanent:true,direction:'right',offset:[10,-14],className:'wo-lbl'});
+    m.on('mouseover',e=>{
+      clearTimeout(_mapHoverTimer);
+      const cfg=tipSettings.map; if(!cfg||!cfg.on) return;
+      const ev=e.originalEvent; _mapLastEv=ev;
+      if(cfg.delay==='1s') _mapHoverTimer=setTimeout(()=>showMapHover(w,_mapLastEv),1000); else showMapHover(w,ev);
+    });
+    m.on('mousemove',e=>{ _mapLastEv=e.originalEvent; moveMapHover(e.originalEvent); });
+    m.on('mouseout',hideMapHover);
     m.bindPopup('<b>WO '+w.id+'</b><br>'+w.addr+(w.city?', '+w.city:'')+'<br><span style="color:#64748b;font-size:11px;">'+w.st+' · drag pin to correct its location</span><br><button class="map-go" onclick="closeMapView();goToWO(\''+projId+'\',\''+w.id+'\')">Go to WO</button>');
     m.on('dragend',()=>{ const p=m.getLatLng(); w.lat=p.lat; w.lng=p.lng; w.geoManual=true; saveState(); });
     placed++;
@@ -1834,11 +1877,12 @@ function renderSettings() {
     {key:'sched', title:'Timeline Schedule'},
     {key:'wo',    title:'Work Orders'},
     {key:'comp',  title:'Completed WOs'},
+    {key:'map',   title:'Map'},
   ];
   container.innerHTML = `
     <div class="settings-card">
       <h3>Tooltips</h3>
-      <p class="settings-desc">Control whether hover tooltips appear, and how fast, on each tab.</p>
+      <p class="settings-desc">Control whether hover tooltips appear, and how fast, on each tab and on the map.</p>
       ${sections.map(s=>{
         const cfg = tipSettings[s.key];
         return `
