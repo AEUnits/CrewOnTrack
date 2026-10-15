@@ -187,6 +187,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 #authGate{position:fixed;inset:0;z-index:5000;background:#1e293b;display:flex;align-items:center;justify-content:center;padding:16px;}
 .auth-card{background:#fff;border-radius:14px;padding:28px 26px;width:380px;max-width:100%;box-shadow:0 20px 50px rgba(0,0,0,.35);}
 .auth-brand{font-size:20px;font-weight:800;color:#1e293b;margin-bottom:2px;}
+.auth-ver{font-size:11px;font-weight:500;color:#94a3b8;margin-left:3px;}
 .auth-sub{font-size:12px;color:#64748b;margin-bottom:18px;}
 .auth-card .form-group{margin-bottom:12px;}
 .auth-card .form-group input{width:100%;}
@@ -234,11 +235,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <!-- AUTH GATE (login / sign-up) -->
 <div id="authGate">
   <div class="auth-card">
-    <div class="auth-brand">⚡ CrewOnTrack</div>
+    <div class="auth-brand">⚡ CrewOnTrack <span class="auth-ver" id="authVer"></span></div>
     <div class="auth-sub" id="authSub">Sign in to your company workspace</div>
     <form id="authForm" onsubmit="return authSubmit(event)" autocomplete="on">
       <div class="form-group" id="authNameWrap" style="display:none;"><label>Your name</label><input type="text" id="authName" autocomplete="name"></div>
       <div class="form-group" id="authCompanyWrap" style="display:none;"><label>Company name</label><input type="text" id="authCompany" autocomplete="organization"></div>
+      <div class="form-group" id="authCodeWrap" style="display:none;"><label>Join code</label><input type="text" id="authCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. K7M2QX9A" style="text-transform:uppercase;letter-spacing:2px;"></div>
       <div class="form-group" id="authEmailWrap"><label>Email</label><input type="email" id="authEmail" autocomplete="email"></div>
       <div class="form-group" id="authPassWrap"><label>Password</label><input type="password" id="authPass" autocomplete="current-password" placeholder="At least 8 characters"></div>
       <button type="submit" class="btn-primary auth-btn" id="authBtn">Sign in</button>
@@ -250,7 +252,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div class="topbar">
   <div>
-    <div class="topbar-title">⚡ CrewOnTrack <span class="topbar-version" id="appVersionTag">v1.83</span></div>
+    <div class="topbar-title">⚡ CrewOnTrack <span class="topbar-version" id="appVersionTag">v1.87</span></div>
     <div class="topbar-sub" id="topbarSub">Haines City WOs</div>
   </div>
   <div class="topbar-user" id="topbarUser" style="display:none;">
@@ -451,7 +453,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ── CONSTANTS ────────────────────────────────────────────────────────────
-const APP_VERSION = 'v1.83'; // bump by 0.01 every time a new download is produced (v1.00 -> v1.01 -> ... -> v1.99 -> v1.100 -> v1.999)
+const APP_MODE = 'real'; // 'test' = sample data + orange bar, 'real' = starts completely empty
+const APP_VERSION = 'v1.87'; // bump by 0.01 every time a new download is produced (v1.00 -> v1.01 -> ... -> v1.99 -> v1.100 -> v1.999)
 const NUM_CREWS   = 22;
 const HRS_DAY     = 40;
 const WORK_DAYS   = 4;
@@ -460,11 +463,12 @@ let SCHED_START = new Date(SCHED_START_FLOOR);
 const SCHED_END_FLOOR = new Date(2026, 11, 31); // never show less than this
 let SCHED_END   = new Date(SCHED_END_FLOOR);
 let SPAN_DAYS   = (SCHED_END - SCHED_START) / 864e5;
-const SK_PROJECTS = 'cs_projects_v2';
-const SK_CREWS    = 'cs_crews_v2';
-const SK_EVENTS   = 'cs_events_v1';
-const SK_SETTINGS = 'cs_settings_v1';
-const SK_MASTER_SYNC_1 = 'cs_master_sync_1';
+const KP = APP_MODE==='real' ? 'real_' : ''; // separate browser storage per version so Test and Real never mix
+const SK_PROJECTS = KP+'cs_projects_v2';
+const SK_CREWS    = KP+'cs_crews_v2';
+const SK_EVENTS   = KP+'cs_events_v1';
+const SK_SETTINGS = KP+'cs_settings_v1';
+const SK_MASTER_SYNC_1 = KP+'cs_master_sync_1';
 
 const SC = {
   'IN PROG':   {bg:'#F48FB1',tx:'#880E4F'},
@@ -588,17 +592,19 @@ function loadState() {
     if (p) projects = JSON.parse(p);
   } catch(e){}
   if (!projects.length) {
-    projects = [{id: uid(), name: 'Haines City WOs', wos: HAINES_SEED.map(w=>({...w}))}];
+    projects = APP_MODE==='real'
+      ? [{id: uid(), name: 'My Project', wos: []}]
+      : [{id: uid(), name: 'Haines City WOs', wos: HAINES_SEED.map(w=>({...w}))}];
   }
   // one-time-safe backfill: WOs with no City/State default to Haines City, FL
   let _cityFilled=false;
-  projects.forEach(pr=>(pr.wos||[]).forEach(w=>{ if(!w.city && !w.state){ w.city='Haines City'; w.state='FL'; _cityFilled=true; } }));
+  projects.forEach(pr=>(pr.wos||[]).forEach(w=>{ if(APP_MODE==='test' && !w.city && !w.state){ w.city='Haines City'; w.state='FL'; _cityFilled=true; } }));
   if(_cityFilled){ try{ localStorage.setItem(SK_PROJECTS, JSON.stringify(projects)); }catch(e){} }
   try {
     const c = localStorage.getItem(SK_CREWS);
     if (c) crews = JSON.parse(c);
   } catch(e){}
-  if (!crews.length || crews.length < NUM_CREWS) {
+  if (APP_MODE==='test' && (!crews.length || crews.length < NUM_CREWS)) {
     crews = [
       'Justin Waters','Allen Jimenez','Jimmy Kersey','Cody Dahlberg',
       'Armando Sandoval','Chris Goodall','Dustin Brown','Gustavo Rios Rodriguez',
@@ -1989,7 +1995,28 @@ function renderSettings() {
         </div>
       </div>`:''}
     </div>`;
+  container.insertAdjacentHTML('beforeend', `
+    <div class="settings-card" style="margin-top:16px;">
+      <h3>Backup</h3>
+      <p class="settings-desc">Save a copy of all your projects, work orders, crews, events and settings from this browser to a file. Do this before any big update.</p>
+      <div style="margin-top:12px;"><button class="btn-primary" onclick="exportBackup()">⬇ Export backup (JSON)</button></div>
+    </div>`);
+  renderTeamCard();
   renderCloudCard();
+}
+
+function exportBackup() {
+  const data = {
+    app: 'CrewOnTrack', version: APP_VERSION, exported: new Date().toISOString(),
+    projects, crews, events,
+    settings: {tipSettings, showBarSSD, showTodayLine, showTodayLineRows, todayLineColor}
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'crewontrack-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
 
 function setShowBarSSD(on) {
@@ -2099,7 +2126,7 @@ function assignCrewByName(name) {
 }
 
 function applyMasterWOList() {
-  if(localStorage.getItem(SK_MASTER_SYNC_1)) return;
+  if(APP_MODE==='real' || localStorage.getItem(SK_MASTER_SYNC_1)) return;
   Object.keys(MASTER_WO_FOREMAN).forEach(woId=>{
     const name = MASTER_WO_FOREMAN[woId];
     projects.forEach(p=>{
@@ -2129,7 +2156,13 @@ function applyMasterWOList() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────
-const _vTag = document.getElementById('appVersionTag'); if(_vTag) _vTag.textContent = APP_VERSION;
+const _vTag = document.getElementById('appVersionTag'); const _verLabel = APP_VERSION + (APP_MODE==='test' ? ' test' : '');
+if(_vTag) _vTag.textContent = _verLabel;
+const _av = document.getElementById('authVer'); if(_av) _av.textContent = _verLabel;
+if(APP_MODE==='test'){
+  document.title = 'CrewOnTrack (TEST)';
+  const _tb = document.querySelector('.topbar'); if(_tb) _tb.style.background = '#7c2d12';
+}
 loadState();
 migrateForemanToCrew();
 applyMasterWOList();
@@ -2142,7 +2175,7 @@ const SUPABASE_URL = 'https://ozgxbrzvzipfppweeeye.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_VZcMjgk6XgR7b3-oXl6KLA_rSxfPkUq'; // publishable key: safe in the browser. NEVER put the secret/service_role key here.
 let sb = null;
 let cloudProfile = null; // {full_name, role, company_id, companies:{name}}
-let authMode = 'login';  // 'login' | 'signup' | 'setup'
+let authMode = 'login';  // 'login' | 'signup' | 'join' | 'setup' | 'joinsetup'
 const escH = t => String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const $a = id => document.getElementById(id);
 
@@ -2154,19 +2187,25 @@ function authMsg(text, kind) {
 function setAuthMode(mode) {
   authMode = mode;
   authMsg('');
-  const signup = mode==='signup', setup = mode==='setup';
-  $a('authNameWrap').style.display = (signup||setup) ? 'flex' : 'none';
+  const signup = mode==='signup', setup = mode==='setup', join = mode==='join', jsetup = mode==='joinsetup';
+  const hasAcct = setup || jsetup; // already signed in, no email/password needed
+  $a('authNameWrap').style.display = (signup||setup||join||jsetup) ? 'flex' : 'none';
   $a('authCompanyWrap').style.display = (signup||setup) ? 'flex' : 'none';
-  $a('authEmailWrap').style.display = setup ? 'none' : 'flex';
-  $a('authPassWrap').style.display = setup ? 'none' : 'flex';
-  $a('authPass').autocomplete = signup ? 'new-password' : 'current-password';
+  $a('authCodeWrap').style.display = (join||jsetup) ? 'flex' : 'none';
+  $a('authEmailWrap').style.display = hasAcct ? 'none' : 'flex';
+  $a('authPassWrap').style.display = hasAcct ? 'none' : 'flex';
+  $a('authPass').autocomplete = (signup||join) ? 'new-password' : 'current-password';
   $a('authSub').textContent = setup ? 'Almost done — name your company to finish setup'
+    : jsetup ? 'Enter the join code your admin gave you'
+    : join ? 'Join your team with a code from your admin'
     : signup ? 'Create a company workspace' : 'Sign in to your company workspace';
-  $a('authBtn').textContent = setup ? 'Finish setup' : signup ? 'Create company' : 'Sign in';
+  $a('authBtn').textContent = setup ? 'Finish setup' : jsetup ? 'Join team' : join ? 'Join team' : signup ? 'Create company' : 'Sign in';
   $a('authSwitch').innerHTML = setup
-    ? '<a onclick="authLogout()">Use a different account</a>'
+    ? 'Have a join code instead? <a onclick="setAuthMode(\'joinsetup\')">Join a team</a><br><br><a onclick="authLogout()">Use a different account</a>'
+    : jsetup ? 'No code? <a onclick="setAuthMode(\'setup\')">Create a new company</a><br><br><a onclick="authLogout()">Use a different account</a>'
+    : join ? 'Already have an account? <a onclick="setAuthMode(\'login\')">Sign in</a>'
     : signup ? 'Already have an account? <a onclick="setAuthMode(\'login\')">Sign in</a>'
-             : 'New company? <a onclick="setAuthMode(\'signup\')">Create an account</a>';
+             : 'Have a join code? <a onclick="setAuthMode(\'join\')">Join your team</a><br><br>New company? <a onclick="setAuthMode(\'signup\')">Create an account</a>';
 }
 function showGate(mode) {
   $a('authGate').style.display = 'flex';
@@ -2216,6 +2255,25 @@ async function authSubmit(ev) {
       const r = await sb.rpc('create_company', { company_name: company, your_name: name });
       if(r.error) throw r.error;
       await enterApp();
+    } else if(authMode==='join') {
+      const code = $a('authCode').value.trim().toUpperCase();
+      if(!name) throw new Error('Enter your name.');
+      if(!code) throw new Error('Enter the join code from your admin.');
+      if(!email) throw new Error('Enter your email.');
+      if(pass.length < 8) throw new Error('Password must be at least 8 characters.');
+      const { data, error } = await sb.auth.signUp({ email, password: pass });
+      if(error) throw error;
+      if(!data.session) { setAuthMode('login'); authMsg('Check your email to confirm your account, then sign in and enter your join code.', 'ok'); return false; }
+      const r = await sb.rpc('join_company', { invite_code: code, your_name: name });
+      if(r.error) { setAuthMode('joinsetup'); $a('authName').value = name; $a('authCode').value = code; throw r.error; } // account exists now; retry code without re-signing up
+      await enterApp();
+    } else if(authMode==='joinsetup') {
+      const code = $a('authCode').value.trim().toUpperCase();
+      if(!name) throw new Error('Enter your name.');
+      if(!code) throw new Error('Enter the join code from your admin.');
+      const r = await sb.rpc('join_company', { invite_code: code, your_name: name });
+      if(r.error) throw r.error;
+      await enterApp();
     } else { // setup
       if(!name || !company) throw new Error('Enter your name and company name.');
       const r = await sb.rpc('create_company', { company_name: company, your_name: name });
@@ -2233,6 +2291,104 @@ async function authLogout() {
   cloudProfile = null;
   $a('authPass').value = '';
   showGate('login');
+}
+
+// ── TEAM & INVITES (join codes) ───────────────────────────────────────────────
+const fmtDateUS = iso => { const d = new Date(iso); return String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0') + '/' + d.getFullYear(); };
+function renderTeamCard() {
+  const container = $a('settingsGrid');
+  if(!container || !cloudProfile) return;
+  const old = $a('teamCard'); if(old) old.remove();
+  const role = cloudProfile.role;
+  if(role !== 'admin' && role !== 'office') return; // foremen don't manage the team
+  const roleOpts = role === 'admin'
+    ? '<option value="foreman">Foreman</option><option value="office">Office</option><option value="admin">Admin</option>'
+    : '<option value="foreman">Foreman</option>';
+  container.insertAdjacentHTML('beforeend', `
+    <div class="settings-card" id="teamCard" style="margin-top:16px;">
+      <h3>Team &amp; invites</h3>
+      <p class="settings-desc">Create a join code for each person. They open the app, tap <b>Join your team</b>, enter the code and pick their own password. Codes work once and expire in 7 days.</p>
+      <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;">
+        <input type="text" id="inviteName" class="search-bar" placeholder="Person's name (optional)" style="flex:1;min-width:150px;" onkeydown="if(event.key==='Enter')createInvite()">
+        <select id="inviteRole" class="search-bar" style="width:auto;">${roleOpts}</select>
+        <button class="btn-primary" onclick="createInvite()">Create code</button>
+      </div>
+      <div id="inviteMsg" style="font-size:12px;color:#b91c1c;"></div>
+      <div id="inviteNew"></div>
+      <div style="font-size:12px;font-weight:700;color:#64748b;margin:14px 0 4px;">PENDING CODES</div>
+      <div id="inviteList" style="font-size:13px;color:#334155;"></div>
+      <div style="font-size:12px;font-weight:700;color:#64748b;margin:14px 0 4px;">TEAM MEMBERS</div>
+      <div id="teamList" style="font-size:13px;color:#334155;"></div>
+    </div>`);
+  loadInvites();
+  loadTeam();
+}
+async function createInvite() {
+  const msg = $a('inviteMsg'); msg.textContent = '';
+  const nameEl = $a('inviteName'), role = $a('inviteRole').value;
+  const { data, error } = await sb.rpc('create_invite', { invite_role: role, invited_name: nameEl.value.trim() || null });
+  if(error) { msg.textContent = error.message; return; }
+  const who = nameEl.value.trim();
+  nameEl.value = '';
+  const url = location.origin + location.pathname;
+  $a('inviteNew').innerHTML = `
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px;margin-top:6px;">
+      <div style="font-size:12px;color:#166534;">New ${escH(role)} code${who ? ' for <b>'+escH(who)+'</b>' : ''}:</div>
+      <div style="font-size:24px;font-weight:800;letter-spacing:3px;color:#14532d;margin:4px 0;">${escH(data)}</div>
+      <button class="btn-sm" onclick="copyText('${escH(data)}', this)">Copy code</button>
+      <button class="btn-sm" onclick="copyText('Join our team on CrewOnTrack: ${escH(url)}  — tap &quot;Join your team&quot; and enter code ${escH(data)}', this)">Copy invite message</button>
+    </div>`;
+  loadInvites();
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text.replace(/&quot;/g,'"')); }
+  catch(e) { window.prompt('Copy this:', text.replace(/&quot;/g,'"')); return; }
+  if(btn) { const o = btn.textContent; btn.textContent = 'Copied ✓'; setTimeout(() => btn.textContent = o, 1500); }
+}
+async function loadInvites() {
+  const list = $a('inviteList'); if(!list || !sb) return;
+  const { data, error } = await sb.from('invites').select('id,code,role,invited_name,expires_at')
+    .is('used_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false });
+  if(error) { list.innerHTML = ''; $a('inviteMsg').textContent = error.message; return; }
+  list.innerHTML = data.length ? data.map(r =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #f1f5f9;">
+      <span><b style="letter-spacing:1px;">${escH(r.code)}</b> · ${escH(r.role)}${r.invited_name ? ' · ' + escH(r.invited_name) : ''}<br><span style="font-size:11px;color:#94a3b8;">expires ${fmtDateUS(r.expires_at)}</span></span>
+      <span style="white-space:nowrap;"><button class="btn-sm" onclick="copyText('${escH(r.code)}', this)">Copy</button> <button class="btn-sm btn-danger" onclick="deleteInvite('${r.id}')">Delete</button></span>
+    </div>`).join('') : '<div style="color:#94a3b8;">No pending codes.</div>';
+}
+async function deleteInvite(id) {
+  const { error } = await sb.from('invites').delete().eq('id', id);
+  if(error) { $a('inviteMsg').textContent = error.message; return; }
+  loadInvites();
+}
+async function loadTeam() {
+  const list = $a('teamList'); if(!list || !sb) return;
+  const { data, error } = await sb.rpc('list_team');
+  if(error) { list.innerHTML = ''; $a('inviteMsg').textContent = error.message; return; }
+  const isAdmin = cloudProfile.role === 'admin';
+  const { data: u } = await sb.auth.getUser();
+  const myId = u && u.user ? u.user.id : null;
+  list.innerHTML = data.map(m => {
+    const me = m.id === myId;
+    const roleCell = (isAdmin && !me)
+      ? `<select class="search-bar" style="width:auto;padding:3px 6px;font-size:12px;" onchange="changeMemberRole('${m.id}', this.value)">${['foreman','office','admin'].map(r => `<option value="${r}"${r===m.role?' selected':''}>${r}</option>`).join('')}</select>`
+      : `<span style="color:#64748b;">${escH(m.role)}</span>`;
+    const rm = (isAdmin && !me) ? ` <button class="btn-sm btn-danger" onclick="removeMember('${m.id}', '${escH(m.full_name).replace(/'/g,'')}')">Remove</button>` : '';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #f1f5f9;">
+      <span>${escH(m.full_name)}${me ? ' <span style="color:#94a3b8;">(you)</span>' : ''}<br><span style="font-size:11px;color:#94a3b8;">${escH(m.email || '')}</span></span>
+      <span style="white-space:nowrap;">${roleCell}${rm}</span></div>`;
+  }).join('');
+}
+async function changeMemberRole(id, role) {
+  const { error } = await sb.rpc('set_member_role', { member_id: id, new_role: role });
+  if(error) $a('inviteMsg').textContent = error.message;
+  loadTeam();
+}
+async function removeMember(id, name) {
+  if(!confirm('Remove ' + name + ' from your company? They will no longer be able to see your data.')) return;
+  const { error } = await sb.rpc('remove_member', { member_id: id });
+  if(error) { $a('inviteMsg').textContent = error.message; return; }
+  loadTeam();
 }
 
 // ── CLOUD ROSTER TEST (proves each company only sees its own data) ───────────
