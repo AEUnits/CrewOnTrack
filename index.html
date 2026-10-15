@@ -17,7 +17,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 /* NAV TABS (top level) */
 .nav{background:#fff;border-bottom:1px solid #e2e8f0;padding:0 20px;display:flex;align-items:center;gap:0;overflow-x:auto;position:sticky;top:0;z-index:50;}
 .nav-tab{padding:12px 16px;font-size:13px;cursor:pointer;border:none;background:none;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-1px;font-weight:500;white-space:nowrap;display:flex;align-items:center;gap:6px;}
-.nav-tab.active{color:#1e293b;border-bottom-color:#6366f1;}
+.nav-tab.active{color:#3730a3;background:#e0e7ff;border-radius:8px 8px 0 0;font-weight:600;}
 .nav-tab:hover:not(.active){color:#1e293b;background:#f8fafc;}
 .nav-tab-close{font-size:14px;color:#94a3b8;line-height:1;padding:1px 3px;border-radius:3px;cursor:pointer;}
 .nav-tab-close:hover{background:#fee2e2;color:#dc2626;}
@@ -182,9 +182,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .empty{text-align:center;padding:40px;color:#94a3b8;font-size:13px;}
 .section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .section-hdr h2{font-size:14px;font-weight:700;color:#1e293b;}
+
+/* AUTH GATE */
+#authGate{position:fixed;inset:0;z-index:5000;background:#1e293b;display:flex;align-items:center;justify-content:center;padding:16px;}
+.auth-card{background:#fff;border-radius:14px;padding:28px 26px;width:380px;max-width:100%;box-shadow:0 20px 50px rgba(0,0,0,.35);}
+.auth-brand{font-size:20px;font-weight:800;color:#1e293b;margin-bottom:2px;}
+.auth-sub{font-size:12px;color:#64748b;margin-bottom:18px;}
+.auth-card .form-group{margin-bottom:12px;}
+.auth-card .form-group input{width:100%;}
+.auth-btn{width:100%;margin-top:4px;padding:10px 16px;font-size:14px;}
+.auth-btn:disabled{opacity:.6;cursor:wait;}
+.auth-msg{font-size:12px;margin-top:12px;padding:8px 10px;border-radius:6px;display:none;line-height:1.4;}
+.auth-msg.err{display:block;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;}
+.auth-msg.ok{display:block;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;}
+.auth-switch{margin-top:14px;font-size:12px;color:#64748b;text-align:center;}
+.auth-switch a{color:#6366f1;font-weight:600;cursor:pointer;text-decoration:none;}
+.auth-switch a:hover{text-decoration:underline;}
+.topbar-user{display:flex;align-items:center;gap:10px;font-size:11px;color:#cbd5e1;text-align:right;}
+.topbar-user b{color:#fff;font-weight:600;}
+.topbar-logout{border:1px solid #475569;background:none;color:#e2e8f0;font-size:11px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer;}
+.topbar-logout:hover{background:#334155;}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 #mapModal{display:none;position:fixed;inset:0;z-index:3000;background:rgba(15,23,42,.55);align-items:center;justify-content:center;}
 #mapModal .map-box{background:#fff;border-radius:12px;width:min(1200px,96vw);height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3);}
@@ -210,10 +231,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </head>
 <body>
 
+<!-- AUTH GATE (login / sign-up) -->
+<div id="authGate">
+  <div class="auth-card">
+    <div class="auth-brand">⚡ CrewOnTrack</div>
+    <div class="auth-sub" id="authSub">Sign in to your company workspace</div>
+    <form id="authForm" onsubmit="return authSubmit(event)" autocomplete="on">
+      <div class="form-group" id="authNameWrap" style="display:none;"><label>Your name</label><input type="text" id="authName" autocomplete="name"></div>
+      <div class="form-group" id="authCompanyWrap" style="display:none;"><label>Company name</label><input type="text" id="authCompany" autocomplete="organization"></div>
+      <div class="form-group" id="authEmailWrap"><label>Email</label><input type="email" id="authEmail" autocomplete="email"></div>
+      <div class="form-group" id="authPassWrap"><label>Password</label><input type="password" id="authPass" autocomplete="current-password" placeholder="At least 8 characters"></div>
+      <button type="submit" class="btn-primary auth-btn" id="authBtn">Sign in</button>
+    </form>
+    <div class="auth-msg" id="authMsg"></div>
+    <div class="auth-switch" id="authSwitch"></div>
+  </div>
+</div>
+
 <div class="topbar">
   <div>
-    <div class="topbar-title">⚡ CrewOnTrack <span class="topbar-version" id="appVersionTag">v1.77</span></div>
-    <div class="topbar-sub">May – December · Haines City</div>
+    <div class="topbar-title">⚡ CrewOnTrack <span class="topbar-version" id="appVersionTag">v1.83</span></div>
+    <div class="topbar-sub" id="topbarSub">Haines City WOs</div>
+  </div>
+  <div class="topbar-user" id="topbarUser" style="display:none;">
+    <div><b id="tuCompany"></b><br><span id="tuUser"></span></div>
+    <button class="topbar-logout" onclick="authLogout()">Log out</button>
   </div>
 </div>
 
@@ -297,13 +339,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="form-group"><label>Permits</label><input type="text" id="fPermit" placeholder="e.g. HC PERMIT"></div>
       <div class="form-group full"><label>Checklist</label>
         <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;">
-          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fStaked" style="width:auto;"> Staked?</label>
-          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fLocated" style="width:auto;"> Located?</label>
-          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fTree" style="width:auto;"> Tree Trimming needed?</label>
-          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fShoulder" style="width:auto;"> Shoulder Space?</label>
-          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fLane" style="width:auto;"> Lane Closure Needed?</label>
-          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fMOT" style="width:auto;"> MOT Needed?</label>
-          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fBackLot" style="width:auto;"> Back Lot Machine Needed?</label>
+          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fStaked" style="width:auto;"> Staked</label>
+          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fLocated" style="width:auto;"> Located</label>
+          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fTree" style="width:auto;"> Tree Trimming</label>
+          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fShoulder" style="width:auto;"> Shoulder Space</label>
+          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fLane" style="width:auto;"> Lane Closure</label>
+          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fMOT" style="width:auto;"> MOT</label>
+          <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;color:#1e293b;cursor:pointer;"><input type="checkbox" id="fBackLot" style="width:auto;"> Back Lot Machine</label>
         </div>
       </div>
       <div class="form-group full"><label>Notes</label><textarea id="fNotes" rows="2" style="resize:vertical;"></textarea></div>
@@ -409,7 +451,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ── CONSTANTS ────────────────────────────────────────────────────────────
-const APP_VERSION = 'v1.77'; // bump by 0.01 every time a new download is produced (v1.00 -> v1.01 -> ... -> v1.99 -> v1.100 -> v1.999)
+const APP_VERSION = 'v1.83'; // bump by 0.01 every time a new download is produced (v1.00 -> v1.01 -> ... -> v1.99 -> v1.100 -> v1.999)
 const NUM_CREWS   = 22;
 const HRS_DAY     = 40;
 const WORK_DAYS   = 4;
@@ -612,6 +654,7 @@ function getMonths() {
 }
 function fmtDate(d) { if(!d) return '—'; const dt=typeof d==='string'?new Date(d):d; return isNaN(dt)?'—':dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
 function fmtShort(d) { if(!d) return '—'; const dt=typeof d==='string'?new Date(d):d; return isNaN(dt)?'—':dt.toLocaleDateString('en-US',{month:'numeric',day:'numeric'}); }
+function fmtMDYs(s) { if(!s) return '—'; const p=s.split('-'); if(p.length!==3) return s; return `${parseInt(p[1],10)}/${parseInt(p[2],10)}/${p[0].slice(-2)}`; }
 function fmtMDY(s) { if(!s) return '—'; const p=s.split('-'); if(p.length!==3) return s; return `${p[1]}/${p[2]}/${p[0]}`; }
 function parseLocalDate(s) { if(!s) return null; const p=s.split('-').map(Number); if(p.length!==3||p.some(isNaN)) return null; return new Date(p[0],p[1]-1,p[2]); }
 function buildSchedule(wos) {
@@ -641,6 +684,7 @@ function renderNav() {
   const nav = document.getElementById('mainNav');
   // Remove old project tabs
   nav.querySelectorAll('.proj-tab').forEach(t=>t.remove());
+  { const ap=getProject(activeProjectId), sub=document.getElementById('topbarSub'); if(ap&&sub) sub.textContent=ap.name; }
   const addBtn = nav.querySelector('.add-tab-btn');
   projects.forEach(proj => {
     const btn = document.createElement('button');
@@ -768,8 +812,8 @@ function showMapHover(w,ev){
     +row('Status',esc(w.st))+row('Hours',w.hrs?esc(w.hrs):'')+row('SSD',d(w.ssd))+row('SD',d(w.sd))+row('SFD',d(w.sfd))
     +row('Foreman',esc(w.fm))+row('% Complete',esc(w.pct)+'%')+row('Con Comp',d(w.cc))+row('Assigned',esc(crewName))
     +row('Designer',esc(w.pike))+row('Permits',esc(w.permit))
-    +row('Staked?',yn(w.staked))+row('Located?',yn(w.located))+row('Tree Trimming?',yn(w.tree))+row('Shoulder Space?',yn(w.shoulder))
-    +row('Lane Closure?',yn(w.lane))+row('MOT?',yn(w.mot))+row('Back Lot Machine?',yn(w.backlot))
+    +row('Staked',yn(w.staked))+row('Located',yn(w.located))+row('Tree Trimming',yn(w.tree))+row('Shoulder Space',yn(w.shoulder))
+    +row('Lane Closure',yn(w.lane))+row('MOT',yn(w.mot))+row('Back Lot Machine',yn(w.backlot))
     +(w.notes?'<div class="mh-r" style="display:block"><span>Notes</span><div style="font-weight:600;margin-top:2px;">'+esc(w.notes)+'</div></div>':'');
   h.style.display='block'; moveMapHover(ev);
 }
@@ -989,7 +1033,7 @@ function drawTimeline(projId) {
 
   let html = '';
   if(todayInRange && showTodayLineRows){
-    html += `<div style="position:absolute;left:${todayPct}%;top:0;bottom:0;width:1px;background:${TODAY_LINE_COLORS[todayLineColor]};z-index:6;pointer-events:none;"></div>`;
+    html += `<div style="position:absolute;left:calc(100px + (100% - 100px) * ${todayPct/100});top:0;bottom:0;width:1px;background:${TODAY_LINE_COLORS[todayLineColor]};z-index:6;pointer-events:none;"></div>`;
   }
   const crewsToShow = fCr!==''&&fCr!==undefined ? [parseInt(fCr)] : getCrewOrderAlpha();
 
@@ -1197,8 +1241,7 @@ function showDateLine(e, projId) {
   if(!barsZones.length) return;
   const zone = barsZones[0].getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (e.clientX - zone.left) / zone.width));
-  const dateMs = SCHED_START.getTime() + pct * SPAN_DAYS * 864e5;
-  const hoverDate = new Date(dateMs);
+  const hoverDate = new Date(SCHED_START.getFullYear(), SCHED_START.getMonth(), SCHED_START.getDate() + Math.round(pct * SPAN_DAYS));
 
   const dateStr = hoverDate.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
   lbl.textContent = dateStr;
@@ -1273,8 +1316,9 @@ function renderWOTable(projId) {
             <th class="sortable" onclick="sortWOTable('${projId}','id')">WO # <span class="sort-arrow" id="woArrow-${projId}-id"></span></th>
             <th class="sortable" onclick="sortWOTable('${projId}','addr')">Address <span class="sort-arrow" id="woArrow-${projId}-addr"></span></th>
             <th class="sortable" onclick="sortWOTable('${projId}','st')">Status <span class="sort-arrow" id="woArrow-${projId}-st"></span></th>
-            <th class="sortable" onclick="sortWOTable('${projId}','pct')">% Done <span class="sort-arrow" id="woArrow-${projId}-pct"></span></th>
+            <th class="sortable" onclick="sortWOTable('${projId}','pct')">% Progress <span class="sort-arrow" id="woArrow-${projId}-pct"></span></th>
             <th class="sortable" onclick="sortWOTable('${projId}','hrs')">Hours <span class="sort-arrow" id="woArrow-${projId}-hrs"></span></th>
+            <th>Charged Hours</th>
             <th class="sortable" onclick="sortWOTable('${projId}','crew')">Assigned Crew <span class="sort-arrow" id="woArrow-${projId}-crew"></span></th>
             <th class="sortable" onclick="sortWOTable('${projId}','ssd')">SSD <span class="sort-arrow" id="woArrow-${projId}-ssd"></span></th>
             <th class="sortable" onclick="sortWOTable('${projId}','sd')">SD <span class="sort-arrow" id="woArrow-${projId}-sd"></span></th>
@@ -1337,7 +1381,7 @@ function refreshWOBody(projId) {
     return true;
   });
 
-  if(!filtered.length){ tbody.innerHTML=`<tr><td colspan="12" class="empty">No work orders found.</td></tr>`; return; }
+  if(!filtered.length){ tbody.innerHTML=`<tr><td colspan="13" class="empty">No work orders found.</td></tr>`; return; }
 
   const rowHtml = (w) => {
     const col=SC[w.st]||{bg:'#e2e8f0',tx:'#334155'};
@@ -1354,10 +1398,11 @@ function refreshWOBody(projId) {
       <td><span class="badge" style="background:${col.bg};color:${col.tx};${w.st==='NEED TO PRINT'?'box-shadow:inset 0 0 0 1px #94a3b8;':''}">${w.st}</span></td>
       <td><div style="display:flex;align-items:center;gap:5px;"><div class="prog-wrap"><div class="prog-fill" style="width:${w.pct}%"></div></div><span style="font-size:12px;">${w.pct}%</span></div></td>
       <td>${w.hrs>0?w.hrs.toLocaleString():'—'}</td>
+      <td>${(w.charged||0).toLocaleString()}</td>
       <td style="white-space:nowrap;font-size:13px;">${crewName}</td>
-      <td>${fmtMDY(w.ssd)}</td>
-      <td>${w.sd?fmtMDY(w.sd):'—'}</td>
-      <td>${w.sfd?fmtMDY(w.sfd):'—'}</td>
+      <td>${fmtMDYs(w.ssd)}</td>
+      <td>${w.sd?fmtMDYs(w.sd):'—'}</td>
+      <td>${w.sfd?fmtMDYs(w.sfd):'—'}</td>
       <td style="max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#64748b;font-size:12px;" title="${w.notes||''}">${w.notes||'—'}</td>
       <td style="text-align:center;white-space:nowrap;">
         <button class="btn-sm btn-edit" data-proj="${projId}" data-wo="${w.id}" onclick="event.stopPropagation();openWOModal(this.dataset.proj,this.dataset.wo)">Edit</button>
@@ -1392,7 +1437,7 @@ function refreshWOBody(projId) {
   });
 
   tbody.innerHTML = assigned.map(rowHtml).join('') +
-    (unassigned.length ? `<tr class="section-divider"><td colspan="12">Work Orders — Unassigned (${unassigned.length})</td></tr>` + unassigned.map(rowHtml).join('') : '');
+    (unassigned.length ? `<tr class="section-divider"><td colspan="13">Work Orders — Unassigned (${unassigned.length})</td></tr>` + unassigned.map(rowHtml).join('') : '');
 
   if(pendingWOFocus && pendingWOFocus.projId===projId) {
     const targetId = pendingWOFocus.woId;
@@ -1429,8 +1474,8 @@ function renderCompleted(projId) {
     </div>
     <div class="wo-wrap" style="max-height:70vh;overflow-y:auto;"><div style="overflow-x:auto;">
       <table class="comp-table">
-        <thead><tr><th>WO #</th><th>Address</th><th>Status</th><th>% Done</th><th>Hours</th><th>Assigned Crew</th><th>SSD</th><th>SD</th><th>SFD</th><th>Con Comp Date</th><th>Notes</th><th style="text-align:center;">Actions</th></tr></thead>
-        <tbody>${comp.length===0?`<tr><td colspan="12" class="empty">No completed WOs yet.</td></tr>`:
+        <thead><tr><th>WO #</th><th>Address</th><th>Status</th><th>% Progress</th><th>Hours</th><th>Charged Hours</th><th>Assigned Crew</th><th>SSD</th><th>SD</th><th>SFD</th><th>Con Comp Date</th><th>Notes</th><th style="text-align:center;">Actions</th></tr></thead>
+        <tbody>${comp.length===0?`<tr><td colspan="13" class="empty">No completed WOs yet.</td></tr>`:
           comp.map(w=>{
             const col=SC[w.st]||{bg:'#A5D6A7',tx:'#1B5E20'};
             const crewName = (w.crew!==undefined&&w.crew!=='') ? (crews[parseInt(w.crew)]||'—') : '<span style="color:#94a3b8;font-style:italic;">Unassigned</span>';
@@ -1441,8 +1486,9 @@ function renderCompleted(projId) {
             <td><span class="badge" style="background:${col.bg};color:${col.tx};${w.st==='NEED TO PRINT'?'box-shadow:inset 0 0 0 1px #94a3b8;':''}">${w.st}</span></td>
             <td><div style="display:flex;align-items:center;gap:5px;"><div class="prog-wrap"><div class="prog-fill" style="width:${w.pct}%"></div></div><span style="font-size:11px;">${w.pct}%</span></div></td>
             <td>${w.hrs>0?w.hrs.toLocaleString():'—'}</td>
+            <td>${(w.charged||0).toLocaleString()}</td>
             <td style="white-space:nowrap;font-size:13px;">${crewName}</td>
-            <td>${fmtMDY(w.ssd)}</td><td>${w.sd?fmtMDY(w.sd):'—'}</td><td>${w.sfd?fmtMDY(w.sfd):'—'}</td><td>${fmtMDY(w.cc)}</td>
+            <td>${fmtMDYs(w.ssd)}</td><td>${w.sd?fmtMDYs(w.sd):'—'}</td><td>${w.sfd?fmtMDYs(w.sfd):'—'}</td><td>${fmtMDYs(w.cc)}</td>
             <td style="max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#64748b;font-size:12px;" title="${w.notes||''}">${w.notes||'—'}</td>
             <td style="text-align:center;white-space:nowrap;">
               <button class="btn-sm btn-edit" data-proj="${projId}" data-wo="${w.id}" onclick="event.stopPropagation();openWOModal(this.dataset.proj,this.dataset.wo)">Edit</button>
@@ -1943,6 +1989,7 @@ function renderSettings() {
         </div>
       </div>`:''}
     </div>`;
+  renderCloudCard();
 }
 
 function setShowBarSSD(on) {
@@ -2089,6 +2136,155 @@ applyMasterWOList();
 projects.forEach(p=>ensureProjectPanel(p));
 renderNav();
 if(projects.length){ activeProjectId=projects[0].id; showProject(projects[0].id); }
+
+// ── CLOUD LOGIN (Supabase) ────────────────────────────────────────────────
+const SUPABASE_URL = 'https://ozgxbrzvzipfppweeeye.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_VZcMjgk6XgR7b3-oXl6KLA_rSxfPkUq'; // publishable key: safe in the browser. NEVER put the secret/service_role key here.
+let sb = null;
+let cloudProfile = null; // {full_name, role, company_id, companies:{name}}
+let authMode = 'login';  // 'login' | 'signup' | 'setup'
+const escH = t => String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const $a = id => document.getElementById(id);
+
+function authMsg(text, kind) {
+  const m = $a('authMsg');
+  m.className = 'auth-msg' + (text ? (kind==='ok' ? ' ok' : ' err') : '');
+  m.textContent = text || '';
+}
+function setAuthMode(mode) {
+  authMode = mode;
+  authMsg('');
+  const signup = mode==='signup', setup = mode==='setup';
+  $a('authNameWrap').style.display = (signup||setup) ? 'flex' : 'none';
+  $a('authCompanyWrap').style.display = (signup||setup) ? 'flex' : 'none';
+  $a('authEmailWrap').style.display = setup ? 'none' : 'flex';
+  $a('authPassWrap').style.display = setup ? 'none' : 'flex';
+  $a('authPass').autocomplete = signup ? 'new-password' : 'current-password';
+  $a('authSub').textContent = setup ? 'Almost done — name your company to finish setup'
+    : signup ? 'Create a company workspace' : 'Sign in to your company workspace';
+  $a('authBtn').textContent = setup ? 'Finish setup' : signup ? 'Create company' : 'Sign in';
+  $a('authSwitch').innerHTML = setup
+    ? '<a onclick="authLogout()">Use a different account</a>'
+    : signup ? 'Already have an account? <a onclick="setAuthMode(\'login\')">Sign in</a>'
+             : 'New company? <a onclick="setAuthMode(\'signup\')">Create an account</a>';
+}
+function showGate(mode) {
+  $a('authGate').style.display = 'flex';
+  $a('topbarUser').style.display = 'none';
+  setAuthMode(mode || 'login');
+}
+function hideGate() { $a('authGate').style.display = 'none'; }
+
+async function loadCloudProfile() {
+  const { data: u } = await sb.auth.getUser();
+  if(!u || !u.user) return null;
+  const { data, error } = await sb.from('profiles')
+    .select('full_name, role, company_id, companies(name)')
+    .eq('id', u.user.id).maybeSingle();
+  if(error) throw error;
+  return data;
+}
+async function enterApp() {
+  try { cloudProfile = await loadCloudProfile(); }
+  catch(e) { showGate('login'); authMsg('Could not load your account: ' + e.message); return; }
+  if(!cloudProfile) { showGate('setup'); return; } // signed in but no company yet
+  $a('tuCompany').textContent = (cloudProfile.companies && cloudProfile.companies.name) || 'Company';
+  $a('tuUser').textContent = cloudProfile.full_name + ' · ' + cloudProfile.role;
+  $a('topbarUser').style.display = 'flex';
+  hideGate();
+}
+
+async function authSubmit(ev) {
+  ev.preventDefault();
+  if(!sb) { authMsg('Could not connect. Check your internet connection and reload.'); return false; }
+  const btn = $a('authBtn'); btn.disabled = true; authMsg('');
+  try {
+    const email = $a('authEmail').value.trim(), pass = $a('authPass').value;
+    const name = $a('authName').value.trim(), company = $a('authCompany').value.trim();
+    if(authMode==='login') {
+      if(!email || !pass) throw new Error('Enter your email and password.');
+      const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+      if(error) throw error;
+      await enterApp();
+    } else if(authMode==='signup') {
+      if(!name || !company) throw new Error('Enter your name and company name.');
+      if(!email) throw new Error('Enter your email.');
+      if(pass.length < 8) throw new Error('Password must be at least 8 characters.');
+      const { data, error } = await sb.auth.signUp({ email, password: pass });
+      if(error) throw error;
+      if(!data.session) { authMsg('Check your email to confirm your account, then sign in.', 'ok'); setAuthMode('login'); authMsg('Check your email to confirm your account, then sign in.', 'ok'); return false; }
+      const r = await sb.rpc('create_company', { company_name: company, your_name: name });
+      if(r.error) throw r.error;
+      await enterApp();
+    } else { // setup
+      if(!name || !company) throw new Error('Enter your name and company name.');
+      const r = await sb.rpc('create_company', { company_name: company, your_name: name });
+      if(r.error) throw r.error;
+      await enterApp();
+    }
+  } catch(e) {
+    authMsg(e.message || String(e));
+  } finally { btn.disabled = false; }
+  return false;
+}
+
+async function authLogout() {
+  if(sb) await sb.auth.signOut();
+  cloudProfile = null;
+  $a('authPass').value = '';
+  showGate('login');
+}
+
+// ── CLOUD ROSTER TEST (proves each company only sees its own data) ───────────
+function renderCloudCard() {
+  const container = $a('settingsGrid');
+  if(!container || !cloudProfile) return;
+  const old = $a('cloudCard'); if(old) old.remove();
+  container.insertAdjacentHTML('beforeend', `
+    <div class="settings-card" id="cloudCard" style="margin-top:16px;">
+      <h3>Cloud connection test</h3>
+      <p class="settings-desc">Signed in to <b>${escH(cloudProfile.companies && cloudProfile.companies.name)}</b>. Names added here are saved in the cloud and visible only to this company.</p>
+      <div style="display:flex;gap:8px;margin:12px 0;">
+        <input type="text" id="cloudRosterName" class="search-bar" placeholder="Add a test roster name…" style="flex:1;" onkeydown="if(event.key==='Enter')addCloudRoster()">
+        <button class="btn-primary" onclick="addCloudRoster()">Add</button>
+      </div>
+      <div id="cloudRosterMsg" style="font-size:12px;color:#b91c1c;"></div>
+      <div id="cloudRosterList" style="font-size:13px;color:#334155;"></div>
+    </div>`);
+  loadCloudRoster();
+}
+async function loadCloudRoster() {
+  const list = $a('cloudRosterList'); if(!list || !sb) return;
+  const { data, error } = await sb.from('crew_members').select('id,name').order('created_at');
+  if(error) { list.innerHTML = ''; $a('cloudRosterMsg').textContent = error.message; return; }
+  list.innerHTML = data.length ? data.map(r =>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #f1f5f9;"><span>${escH(r.name)}</span><button class="btn-sm btn-danger" onclick="deleteCloudRoster('${r.id}')">Remove</button></div>`
+  ).join('') : '<div style="color:#94a3b8;">No cloud roster names yet.</div>';
+}
+async function addCloudRoster() {
+  const inp = $a('cloudRosterName'), name = inp.value.trim();
+  if(!name || !cloudProfile) return;
+  $a('cloudRosterMsg').textContent = '';
+  const { error } = await sb.from('crew_members').insert({ company_id: cloudProfile.company_id, name });
+  if(error) { $a('cloudRosterMsg').textContent = error.message; return; }
+  inp.value = '';
+  loadCloudRoster();
+}
+async function deleteCloudRoster(id) {
+  const { error } = await sb.from('crew_members').delete().eq('id', id);
+  if(error) { $a('cloudRosterMsg').textContent = error.message; return; }
+  loadCloudRoster();
+}
+
+(async function authInit() {
+  setAuthMode('login');
+  if(!window.supabase) { authMsg('Could not load the login service. Check your internet connection and reload.'); return; }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  try {
+    const { data } = await sb.auth.getSession();
+    if(data && data.session) await enterApp();
+  } catch(e) { authMsg('Could not reach the server: ' + (e.message||e)); }
+})();
 </script>
 </body>
 </html>
